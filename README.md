@@ -1,112 +1,180 @@
-# model-router (Claude Code plugin — draft)
+<div align="center">
 
-Routes each task to the cheapest Claude model that will still do it well, and — because a
-plugin **cannot** switch the main session's model — does it the one way that actually works:
-by delegating self-contained sub-work to **model-pinned subagents**, and advising you on
-`/model` for the main thread.
+# 🧭 model-router
 
-## What's in it
+### Route every task to the *cheapest Claude model that still nails it* — automatically.
+
+[![Claude Code plugin](https://img.shields.io/badge/Claude_Code-plugin-8A2BE2?style=flat-square)](https://docs.claude.com/en/docs/claude-code)
+[![Models](https://img.shields.io/badge/haiku_·_sonnet_·_opus-latest_aliases-F97316?style=flat-square)](#-the-tiers)
+[![CLI](https://img.shields.io/badge/claude--route-bash-121011?style=flat-square&logo=gnubash&logoColor=white)](#-claude-route--the-per-launch-cli)
+[![License: MIT](https://img.shields.io/badge/License-MIT-22C55E?style=flat-square)](LICENSE)
+
+</div>
+
+---
+
+Opus on a mechanical rename is wasted money and latency. Haiku on an architecture decision is a
+confident wrong answer. **model-router** picks the right tier for each task — and *acts on it*:
+it delegates self-contained sub-work to model-pinned subagents, and tells you which `/model` to
+switch to for the main thread.
+
+> A Claude Code plugin **+** a `claude-route` CLI **+** a map of every model-selection lever.
+
+## ✨ At a glance
+
+```mermaid
+flowchart LR
+    T([task]) --> R{{pick-model rubric}}
+    R -->|mechanical · bulk · low-stakes| Q["⚡ quick<br/><b>haiku</b>"]
+    R -->|everyday coding · specified| S["⚙️ standard<br/><b>sonnet</b> · medium"]
+    R -->|architecture · hard debug · long-horizon| D["🧠 deep<br/><b>opus</b> · high→xhigh"]
+    classDef q fill:#16A34A,stroke:#0b3d24,color:#fff
+    classDef s fill:#2563EB,stroke:#12365e,color:#fff
+    classDef d fill:#7C3AED,stroke:#3c2a6b,color:#fff
+    class Q q
+    class S s
+    class D d
+```
+
+## 🎯 The tiers
+
+Everything uses the **aliases** `haiku` / `sonnet` / `opus` — each always resolves to the
+*latest* model in its tier, so nothing is ever pinned to a stale version.
+
+| | Tier | alias · subagent | Relative cost | Best for |
+|:-:|---|---|:-:|---|
+| ⚡ | **Quick** | `haiku` · `quick` | `$` | mechanical, deterministic, low-stakes, high-volume |
+| ⚙️ | **Standard** | `sonnet` · `standard` | `$$` | everyday coding, moderate reasoning, well-specified |
+| 🧠 | **Deep** | `opus` · `deep` | `$$$` | architecture, hard/underspecified debugging, review, long-horizon |
+
+`opus` is Claude Code's default main model — route *down* to save cost/latency, *up* when the
+work genuinely needs it. Effort is a second, orthogonal lever (`medium` on standard, `high`→
+`xhigh` on deep; `xhigh` is the ceiling — no fast mode).
+
+## 🚀 Install
+
+```bash
+# 1. register this repo as a plugin marketplace
+claude plugin marketplace add jpfmscel/model-router
+
+# 2. install the plugin
+claude plugin install model-router@jpfmscel
+
+# 3. verify, then start a new session (skills/agents load at session start)
+claude plugin list
+```
+
+<details>
+<summary>Other ways in</summary>
+
+| Goal | Command |
+|---|---|
+| **From a local clone** (works even if the repo is private) | `claude plugin marketplace add /path/to/model-router` → `claude plugin install model-router@jpfmscel` |
+| **Try it for one session** | `claude --plugin-dir /path/to/model-router` |
+| **No plugin system** | copy `skills/pick-model`, `agents/*.md`, `commands/pick-model.md` into `~/.claude/{skills,agents,commands}/` |
+
+</details>
+
+Then, in a new session:
 
 ```
-model-router/
-├── .claude-plugin/plugin.json     manifest
-├── skills/pick-model/SKILL.md     the decision rubric (task signals → tier + effort)
-├── agents/
-│   ├── quick.md                   model: haiku   — mechanical / low-stakes / high-volume
-│   ├── standard.md                model: sonnet  (effort medium) — everyday coding
-│   └── deep.md                    model: opus    (effort high)   — hard / long-horizon
-└── commands/pick-model.md         /pick-model <task> — classify + offer to delegate
+/pick-model design a caching layer for the API      →  🧠 deep
+/pick-model rename userId to accountId everywhere    →  ⚡ quick
 ```
 
-Model tiers use the **aliases** `haiku` / `sonnet` / `opus`, which always resolve to the latest
-model in each tier — nothing is pinned to a version. Effort caps at `xhigh`. (Fast mode is
-intentionally out of scope.)
+…and Claude will auto-delegate mechanical / everyday / hard sub-work to the matching subagent
+as it goes.
 
-## The four model-selection layers
+## 🧠 How routing works (the honest version)
 
-Model selection in Claude Code is layered from coarse (one setting for everything) to fine
-(per sub-task). Use the coarsest one that gives you what you want.
+One constraint shapes the whole design: **nothing inside a plugin can switch the _main_
+session's model.** `/model` is a user action; hooks can't route models; a skill's `model:`
+frontmatter only overrides the current turn. The one lever a plugin *does* control is
+**subagents**. So model-router makes exactly two moves:
+
+- **🔀 Delegate** — the work is a self-contained sub-task → dispatch the matching subagent
+  (`quick` / `standard` / `deep`). That sub-task genuinely runs on the chosen model.
+- **🗣️ Advise** — the *whole session* belongs on another tier → recommend the `/model <tier>` to
+  run. It can't switch the main model for you.
+
+## 🗺️ The four selection layers
+
+Coarse (one setting for everything) → fine (per sub-task). Use the coarsest one that does what
+you want.
 
 | Scope | Where | Effect |
 |---|---|---|
-| **Global default** | `~/.claude/settings.json` → `"model"` | one model for *all* new sessions. Set via `/model` → "save as default", or edit the file. |
-| **Per-project default** | `<repo>/.claude/settings.json` → `"model"` | coarse routing by repo |
-| **Per-launch** | `claude --model <alias>` or [`bin/route.sh`](bin/route.sh) | pick when you start a session / run a headless task |
-| **In-session sub-work** | this plugin's `quick`/`standard`/`deep` subagents | route delegated work without touching the main session |
+| 🌍 **Global default** | `~/.claude/settings.json` → `"model"` | one model for *all* new sessions (`/model` → "save as default") |
+| 📁 **Per-project** | `<repo>/.claude/settings.json` → `"model"` | coarse routing by repo |
+| 🖥️ **Per-launch** | `claude --model <alias>` · [`claude-route`](#-claude-route--the-per-launch-cli) | pick when you start a session / run a headless task |
+| 🧵 **In-session** | this plugin's `quick`/`standard`/`deep` subagents | route delegated sub-work without touching the main session |
 
-Precedence (highest wins): `--model` flag → `--settings` → project `settings.json` → user
+Precedence, highest wins: `--model` flag → `--settings` → project `settings.json` → user
 `settings.json` → built-in default.
 
-**A single global default is not routing** — it picks one model for everything. For *per-task*
-selection you need the per-launch script (`--model`) or the in-session subagents. If you just
-want "always use X", set the global `model` key and you're done — you don't need this plugin.
+> **A single global default is not routing** — it's one model for everything. Per-task selection
+> needs the per-launch CLI or the in-session subagents. If you just want *"always use X"*, set
+> the global `model` key and skip the plugin entirely.
 
-## bin/route.sh — the per-launch router (headless / scripting)
+## 🧪 `claude-route` — the per-launch CLI
 
-`bin/route.sh` classifies a task (cheaply, with `haiku`) and then launches Claude Code on the
-chosen tier via `claude --model` (+ `--effort`). It controls the model **at invocation time**;
-it cannot change a session that's already running — that's what the subagents are for.
+[`bin/route.sh`](bin/route.sh) classifies a task (cheaply, with `haiku`) and launches Claude Code
+on the chosen tier via `claude --model` + `--effort`. It controls the model **at invocation
+time** — it can't change a session already running (that's what the subagents are for).
 
-```sh
-bin/route.sh "rename userId to accountId across the repo"    # -> quick, launches a session
-bin/route.sh -p "summarize the last commit"                  # -> headless answer, printed
-bin/route.sh -t deep "design a caching layer for the API"    # force a tier
-bin/route.sh -n "add a null check in parse()"                # dry-run: just show the pick
+```bash
+claude-route "rename userId to accountId across the repo"   # → quick, launches a session
+claude-route -p "summarize the last commit"                 # → headless answer, printed
+claude-route -t deep "design a caching layer for the API"   # force a tier
+claude-route -n "add a null check in parse()"               # dry-run: just show the pick
 ```
 
-Flags: `-t/--tier`, `-p/--print` (headless), `-n/--dry-run`, `--classifier-model`, `-h/--help`.
+Flags: `-t/--tier` · `-p/--print` (headless) · `-n/--dry-run` · `--classifier-model` · `-h/--help`.
 
-## How it behaves
+Wire it onto your `PATH` (named `claude-route` to avoid the macOS `/sbin/route` clash):
 
-- **Self-contained sub-task** → Claude dispatches the matching subagent (`quick`/`standard`/
-  `deep`), so that sub-task genuinely runs on the chosen model. The subagent descriptions are
-  written so Claude auto-delegates by task type.
-- **Whole-session direction** → the skill recommends the `/model <tier>` to run (it can't switch
-  the main model for you).
-- **On demand** → `/pick-model <task>` prints the pick + rationale and offers to delegate.
+```bash
+ln -sf "$(pwd)/bin/route.sh" /opt/homebrew/bin/claude-route   # or any dir on your PATH
+```
 
-## The routing rubric (short version)
+## 📐 The routing rubric
 
 | Signals | Tier |
 |---|---|
-| mechanical, deterministic, low-stakes, high-volume | `quick` (haiku) |
-| well-specified everyday coding, moderate reasoning, bounded scope | `standard` (sonnet, effort medium) |
-| architecture, cross-cutting, hard/underspecified debugging, security, review, long-horizon | `deep` (opus, effort high→xhigh) |
+| mechanical, deterministic, low-stakes, high-volume | ⚡ `quick` (haiku) |
+| well-specified everyday coding, moderate reasoning, bounded scope | ⚙️ `standard` (sonnet · medium) |
+| architecture, cross-cutting, hard/underspecified debugging, security, review, long-horizon | 🧠 `deep` (opus · high→xhigh) |
 
-Tie-breakers: high cost-of-error bumps **up** a tier; cost-sensitive + reversible + bulk starts
-**down** and escalates on failure; when genuinely unsure, pick the higher tier once. Reach for
-the **effort** lever before the model lever on borderline tasks. Full rubric in
-[`skills/pick-model/SKILL.md`](skills/pick-model/SKILL.md).
+**Tie-breakers:** high cost-of-error bumps **up** a tier · cost-sensitive + reversible + bulk
+starts **down** and escalates on failure · genuinely unsure → pick the higher tier once (a wrong
+cheap answer usually costs more than the tier difference) · reach for the **effort** lever before
+the model lever on borderline tasks.
 
-## Install
+Full rubric: [`skills/pick-model/SKILL.md`](skills/pick-model/SKILL.md).
 
-**As a plugin** (keeps the pieces together): make this directory discoverable as a Claude Code
-plugin — add it to a plugin marketplace you control, or drop it where your Claude Code plugin
-config points. Then enable `model-router`. See `/plugin` in Claude Code for the current install
-flow.
+## 🧩 What's inside
 
-**Or drop the pieces in directly** (no plugin wrapper needed — they work standalone):
-
-```sh
-mkdir -p ~/.claude/skills ~/.claude/agents ~/.claude/commands
-cp -r skills/pick-model      ~/.claude/skills/
-cp    agents/*.md            ~/.claude/agents/
-cp    commands/pick-model.md ~/.claude/commands/
+```
+model-router/
+├── .claude-plugin/
+│   ├── plugin.json            plugin manifest
+│   └── marketplace.json       makes the repo installable via /plugin
+├── skills/pick-model/SKILL.md the decision rubric
+├── agents/
+│   ├── quick.md               model: haiku
+│   ├── standard.md            model: sonnet · effort medium
+│   └── deep.md                model: opus   · effort high
+├── commands/pick-model.md     /pick-model <task>
+└── bin/route.sh               claude-route — per-launch CLI
 ```
 
-Scope to one project instead by copying into that repo's `.claude/{skills,agents,commands}/`.
+## 🔄 Updating
 
-## Verify
+```bash
+claude plugin marketplace update jpfmscel && claude plugin install model-router@jpfmscel
+# (local-clone install instead: `git pull` then `claude plugin marketplace update`)
+```
 
-- `/pick-model rename a variable across three files` → should recommend **quick**.
-- `/pick-model design a caching layer for the API` → should recommend **deep**.
-- Ask Claude to do a mechanical bulk edit → it should offer to delegate to the `quick` subagent.
+## 📄 License
 
-## Notes / limitations
-
-- No mechanism can change the **main** session model from inside a plugin — that's a user
-  `/model` action by design. This plugin gets real routing only for delegated sub-work.
-- Switching the main model mid-session invalidates the prompt cache — prefer delegating a
-  sub-task over `/model` ping-pong.
-- The `quick` tier omits `effort` (the current Haiku tier doesn't support it); `standard` and
-  `deep` set `medium` / `high` and cap at `xhigh`.
+[MIT](LICENSE) — do whatever, no warranty.
