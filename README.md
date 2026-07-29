@@ -60,9 +60,16 @@ claude plugin marketplace add jpfmscel/model-router
 # 2. install the plugin
 claude plugin install model-router@jpfmscel
 
-# 3. verify, then start a new session (skills/agents load at session start)
+# 3. verify it's installed
 claude plugin list
+
+# 4. RESTART Claude Code (quit + relaunch)
+#    Skills, agents, and commands load at session start — and the UserPromptSubmit hook
+#    only binds in a fresh session. `/reload-plugins` will NOT attach the hook mid-session.
 ```
+
+Confirm the hook is live after restarting: `/hooks` should list **two** `UserPromptSubmit`
+entries if you also run caveman — `pick-model-trigger.sh (model-router)` alongside it.
 
 <details>
 <summary>Other ways in</summary>
@@ -190,9 +197,28 @@ model-router/
 ## 🔄 Updating
 
 ```bash
-claude plugin marketplace update jpfmscel && claude plugin install model-router@jpfmscel
-# (local-clone install instead: `git pull` then `claude plugin marketplace update`)
+claude plugin update model-router@jpfmscel
+# then RESTART Claude Code — required to apply, and the hook re-binds only in a new session.
+# (local-clone install: `git pull`, then `claude plugin marketplace update jpfmscel`, then update.)
 ```
+
+## 🧹 Disable / uninstall
+
+```bash
+# turn it off but keep it installed (re-enable with `enable`)
+claude plugin disable model-router@jpfmscel
+claude plugin enable  model-router@jpfmscel
+
+# remove it entirely
+claude plugin uninstall model-router@jpfmscel
+claude plugin marketplace remove jpfmscel        # also drop the marketplace
+
+# restart Claude Code afterwards so the UserPromptSubmit hook detaches
+```
+
+Want to keep the skill + subagents but stop the **every-prompt auto-routing**? Just remove the
+`hooks` block from `.claude-plugin/plugin.json` (or disable the plugin's hooks) — you'll still
+have `/pick-model` and the subagents on demand.
 
 ## 📄 License
 
