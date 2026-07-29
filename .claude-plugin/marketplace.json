@@ -1,0 +1,14 @@
+{
+  "name": "jpfmscel",
+  "owner": { "name": "jpfmscel" },
+  "metadata": {
+    "description": "jpfmscel Claude Code plugins"
+  },
+  "plugins": [
+    {
+      "name": "model-router",
+      "source": "./",
+      "description": "Route each task to the best Claude model tier (haiku/sonnet/opus) via model-pinned subagents, a decision-rubric skill, and a /pick-model command."
+    }
+  ]
+}
