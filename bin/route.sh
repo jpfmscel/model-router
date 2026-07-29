@@ -32,12 +32,21 @@
 
 set -euo pipefail
 
+VERSION="0.1.0"
 CLASSIFIER_MODEL="haiku"
 FORCED_TIER=""
 PRINT=0
 DRY_RUN=0
 
-die() { printf 'route.sh: %s\n' "$1" >&2; exit 1; }
+# Colors only when stderr is a terminal (keeps piped/logged output clean).
+if [[ -t 2 ]]; then
+  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
+  C_QUICK=$'\033[32m'; C_STANDARD=$'\033[34m'; C_DEEP=$'\033[35m'
+else
+  BOLD=""; DIM=""; RESET=""; C_QUICK=""; C_STANDARD=""; C_DEEP=""
+fi
+
+die() { printf '%sroute.sh:%s %s\n' "$BOLD" "$RESET" "$1" >&2; exit 1; }
 
 usage() { sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
@@ -49,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     -p|--print)            PRINT=1; shift ;;
     -n|--dry-run)          DRY_RUN=1; shift ;;
     --classifier-model)    CLASSIFIER_MODEL="${2:-}"; shift 2 ;;
+    -V|--version)          printf 'claude-route %s\n' "$VERSION"; exit 0 ;;
     -h|--help)             usage 0 ;;
     --)                    shift; ARGS+=("$@"); break ;;
     -*)                    die "unknown option: $1 (try --help)" ;;
@@ -97,12 +107,14 @@ fi
 
 # --- map tier -> model + effort ----------------------------------------------
 case "$TIER" in
-  quick)    MODEL="haiku";  EFFORT="" ;;      # Haiku doesn't take --effort
-  standard) MODEL="sonnet"; EFFORT="medium" ;;
-  deep)     MODEL="opus";   EFFORT="high" ;;
+  quick)    MODEL="haiku";  EFFORT="";       TC="$C_QUICK";    ICON="⚡" ;;   # Haiku takes no --effort
+  standard) MODEL="sonnet"; EFFORT="medium"; TC="$C_STANDARD"; ICON="⚙" ;;
+  deep)     MODEL="opus";   EFFORT="high";   TC="$C_DEEP";     ICON="◆" ;;
 esac
 
-printf '→ tier=%s  model=%s%s\n' "$TIER" "$MODEL" "${EFFORT:+  effort=$EFFORT}" >&2
+line="${TC}${BOLD}${ICON} ${TIER}${RESET}  ${DIM}model${RESET} ${MODEL}"
+[[ -n "$EFFORT" ]] && line+="  ${DIM}effort${RESET} ${EFFORT}"
+printf '%s\n' "$line" >&2
 [[ "$DRY_RUN" -eq 1 ]] && exit 0
 
 # --- run ----------------------------------------------------------------------
