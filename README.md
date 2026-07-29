@@ -137,6 +137,20 @@ Wire it onto your `PATH` (named `claude-route` to avoid the macOS `/sbin/route` 
 ln -sf "$(pwd)/bin/route.sh" /opt/homebrew/bin/claude-route   # or any dir on your PATH
 ```
 
+## 🪝 Auto-routing hint (every prompt)
+
+A `UserPromptSubmit` hook ([`hooks/route-hint.sh`](hooks/route-hint.sh)) runs on **every prompt**
+and injects a one-line routing hint when a task reads as `quick` or `deep` (silent on
+`standard`, to avoid noise). It's a **cheap keyword heuristic** — no LLM call, no external deps —
+so it adds no latency or tokens and can't break.
+
+> **It cannot switch the model.** Claude Code exposes no hook lever for that. The hint just nudges
+> the agent to delegate to the matching subagent (or to `/model`) — the actual model change still
+> happens via delegation or your `/model`.
+
+Silence it by disabling the plugin's hooks, or remove the `hooks` block from
+`.claude-plugin/plugin.json`.
+
 ## 📐 The routing rubric
 
 | Signals | Tier |
@@ -165,6 +179,7 @@ model-router/
 │   ├── standard.md            model: sonnet · effort medium
 │   └── deep.md                model: opus   · effort high
 ├── commands/pick-model.md     /pick-model <task>
+├── hooks/route-hint.sh        per-prompt routing hint (UserPromptSubmit)
 └── bin/route.sh               claude-route — per-launch CLI
 ```
 
