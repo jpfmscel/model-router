@@ -1,0 +1,6 @@
+{
+  "name": "model-router",
+  "description": "Route each task to the best Claude model tier via the haiku/sonnet/opus aliases (always the latest models), using model-pinned subagents, a decision-rubric skill, and a /pick-model command.",
+  "version": "0.1.0",
+  "author": { "name": "drafted by Claude Code" }
+}
