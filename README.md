@@ -138,10 +138,16 @@ claude-route -n "add a null check in parse()"               # dry-run: just show
 
 Flags: `-t/--tier` · `-p/--print` (headless) · `-n/--dry-run` · `--classifier-model` · `-h/--help`.
 
-Wire it onto your `PATH` (named `claude-route` to avoid the macOS `/sbin/route` clash):
+Portable to any Unix with **bash** — Linux, macOS, WSL, *BSD (bash-3.2-safe; needs only `bash`
+and the `claude` CLI). Wire it onto your `PATH` — the name `claude-route` dodges the `route`
+net-tool that exists on both macOS (`/sbin/route`) and Linux:
 
 ```bash
-ln -sf "$(pwd)/bin/route.sh" /opt/homebrew/bin/claude-route   # or any dir on your PATH
+# macOS (Apple Silicon Homebrew)
+ln -sf "$(pwd)/bin/route.sh" /opt/homebrew/bin/claude-route
+
+# Linux / WSL / macOS (Intel) — any dir already on your PATH
+ln -sf "$(pwd)/bin/route.sh" ~/.local/bin/claude-route     # or /usr/local/bin
 ```
 
 ## 🪝 Auto-routing on every prompt
