@@ -137,16 +137,20 @@ Wire it onto your `PATH` (named `claude-route` to avoid the macOS `/sbin/route` 
 ln -sf "$(pwd)/bin/route.sh" /opt/homebrew/bin/claude-route   # or any dir on your PATH
 ```
 
-## 🪝 Auto-routing hint (every prompt)
+## 🪝 Auto-routing on every prompt
 
-A `UserPromptSubmit` hook ([`hooks/route-hint.sh`](hooks/route-hint.sh)) runs on **every prompt**
-and injects a one-line routing hint when a task reads as `quick` or `deep` (silent on
-`standard`, to avoid noise). It's a **cheap keyword heuristic** — no LLM call, no external deps —
-so it adds no latency or tokens and can't break.
+A `UserPromptSubmit` hook ([`hooks/pick-model-trigger.sh`](hooks/pick-model-trigger.sh)) runs on
+**every prompt** and injects one directive: *"use the `pick-model` skill to route this."* The
+**skill's full rubric** — not a keyword guess — then picks the tier and acts on it. The hook
+itself just prints a fixed string (no LLM call, no deps, nothing to break); the intelligence
+lives in the skill.
 
-> **It cannot switch the model.** Claude Code exposes no hook lever for that. The hint just nudges
-> the agent to delegate to the matching subagent (or to `/model`) — the actual model change still
-> happens via delegation or your `/model`.
+The injected directive tells the skill to route **quietly** (no narration unless it actually
+delegates or recommends `/model`) and to **skip trivial prompts** (greetings, confirmations).
+
+> **A hook cannot switch the model.** Claude Code exposes no such lever. The skill acts on its
+> pick by delegating a self-contained sub-task to the matching subagent, or recommending
+> `/model` for the whole session.
 
 Silence it by disabling the plugin's hooks, or remove the `hooks` block from
 `.claude-plugin/plugin.json`.
@@ -179,7 +183,7 @@ model-router/
 │   ├── standard.md            model: sonnet · effort medium
 │   └── deep.md                model: opus   · effort high
 ├── commands/pick-model.md     /pick-model <task>
-├── hooks/route-hint.sh        per-prompt routing hint (UserPromptSubmit)
+├── hooks/pick-model-trigger.sh  fires the pick-model skill on every prompt (UserPromptSubmit)
 └── bin/route.sh               claude-route — per-launch CLI
 ```
 
