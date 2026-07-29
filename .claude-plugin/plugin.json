@@ -1,7 +1,7 @@
 {
   "name": "model-router",
-  "description": "Route each task to the best Claude model tier via the haiku/sonnet/opus aliases (always the latest models), using model-pinned subagents, a decision-rubric skill, a /pick-model command, and an optional per-prompt routing-hint hook.",
-  "version": "0.2.0",
+  "description": "Route each task to the best Claude model tier via the haiku/sonnet/opus aliases (always the latest models), using model-pinned subagents, a decision-rubric skill, a /pick-model command, and a per-prompt hook that triggers the routing skill automatically.",
+  "version": "0.3.0",
   "author": { "name": "jpfmscel" },
   "hooks": {
     "UserPromptSubmit": [
@@ -9,9 +9,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/route-hint.sh\"",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/pick-model-trigger.sh\"",
             "timeout": 5,
-            "statusMessage": "Routing hint…"
+            "statusMessage": "Routing…"
           }
         ]
       }
